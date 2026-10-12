@@ -9,3 +9,4 @@ ehthumbs.db
 .idea/
 *.iml
 *.swp
+.venv/

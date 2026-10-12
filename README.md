@@ -42,11 +42,12 @@ The backend is a Django REST API featuring JWT authentication and CRUD operation
    ```bash
    pip install -r requirements.txt
    ```
-4. Run database migrations:
+4. Set the Django secret key in `learning_app_backend/.env` (copy `.env.example` and use a unique random value). The local `.env` file is ignored by Git. Production deployments should set `SECRET_KEY` in their environment.
+5. Run database migrations:
    ```bash
    python manage.py migrate
    ```
-5. Start the development server:
+6. Start the development server:
    ```bash
    python manage.py runserver
    ```
