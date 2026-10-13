@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/task_item.dart';
@@ -25,7 +26,10 @@ class SessionData {
 
 class ApiService {
   ApiService({String? baseUrl})
-      : baseUrl = baseUrl ?? "http://127.0.0.1:8000/api";
+      : baseUrl = baseUrl ?? const String.fromEnvironment(
+          'API_BASE_URL',
+          defaultValue: 'http://127.0.0.1:8000/api',
+        );
 
   final String baseUrl;
 
@@ -133,7 +137,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> _get(String path, {required String token}) async {
     final uri = Uri.parse('$baseUrl$path');
-    _logRequest('GET', uri, headers: _headers(token));
+    _logRequest('GET', uri);
     final response = await http.get(uri, headers: _headers(token));
     return _decodeResponse(response);
   }
@@ -145,7 +149,7 @@ class ApiService {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
-    _logRequest('POST', uri, headers: headers, body: body);
+    _logRequest('POST', uri);
     final response = await http.post(uri, headers: headers, body: jsonEncode(body));
     return _decodeResponse(response);
   }
@@ -157,7 +161,7 @@ class ApiService {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
-    _logRequest('PATCH', uri, headers: headers, body: body);
+    _logRequest('PATCH', uri);
     final response = await http.patch(uri, headers: headers, body: jsonEncode(body));
     return _decodeResponse(response);
   }
@@ -165,7 +169,7 @@ class ApiService {
   Future<Map<String, dynamic>> _delete(String path, {required String token}) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
-    _logRequest('DELETE', uri, headers: headers);
+    _logRequest('DELETE', uri);
     final response = await http.delete(uri, headers: headers);
     return _decodeResponse(response);
   }
@@ -180,22 +184,15 @@ class ApiService {
     return headers;
   }
 
-  void _logRequest(
-    String method,
-    Uri uri, {
-    required Map<String, String> headers,
-    Map<String, dynamic>? body,
-  }) {
+  void _logRequest(String method, Uri uri) {
+    if (!kDebugMode) return;
     print('[HTTP Request] $method $uri');
-    print('[HTTP Headers] $headers');
-    if (body != null) {
-      print('[HTTP Body] ${jsonEncode(body)}');
-    }
   }
 
   Map<String, dynamic> _decodeResponse(http.Response response) {
-    print('[HTTP Response] ${response.statusCode} ${response.request?.url}');
-    print('[HTTP Response Body] ${response.body}');
+    if (kDebugMode) {
+      print('[HTTP Response] ${response.statusCode} ${response.request?.url}');
+    }
 
     final decoded = jsonDecode(response.body);
     if (decoded is Map<String, dynamic>) {

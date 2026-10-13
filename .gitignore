@@ -10,3 +10,10 @@ ehthumbs.db
 *.iml
 *.swp
 .venv/
+
+# Environment and deployment secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key

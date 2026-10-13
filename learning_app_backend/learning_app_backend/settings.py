@@ -13,40 +13,65 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+REPOSITORY_ROOT = BASE_DIR.parent
+
+# Load the deployment/local environment file from the repository root. Values
+# already supplied by the process (for example, systemd or Gunicorn) win.
+load_dotenv(REPOSITORY_ROOT / '.env', override=False)
+
+
+def csv_environment_value(name, default=''):
+    """Return a comma-separated environment variable as trimmed values."""
+    return [item.strip() for item in os.getenv(name, default).split(',') if item.strip()]
+
+
+def boolean_environment_value(name, default=False):
+    """Parse a boolean environment variable and reject ambiguous values."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off'}:
+        return False
+    raise ImproperlyConfigured(f'{name} must be a boolean value.')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-import os
-
-# Load local development settings from .env when present. Environment variables
-# take precedence, so production deployments can provide SECRET_KEY directly.
-ENV_FILE = BASE_DIR / '.env'
-if ENV_FILE.exists():
-    for line in ENV_FILE.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith('#') and '=' in line:
-            name, value = line.split('=', 1)
-            os.environ.setdefault(name.strip(), value.strip().strip('"\''))
-
-SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY', '').strip()
 if not SECRET_KEY:
     raise ImproperlyConfigured(
-        'SECRET_KEY is required. Set it in the environment or in '
-        f'{ENV_FILE} for local development.'
+        'SECRET_KEY is required. Set a non-empty value in the process '
+        'environment or the repository-root .env file.'
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = boolean_environment_value('DEBUG', default=False)
+ALLOWED_HOSTS = csv_environment_value(
+    'ALLOWED_HOSTS', 'localhost,127.0.0.1,10.0.2.2,testserver'
+)
+CORS_ALLOWED_ORIGINS = csv_environment_value('CORS_ALLOWED_ORIGINS')
 
-ALLOWED_HOSTS = [
-    'task-manager-flutter-django.onrender.com',
-]
+# Nginx must pass X-Forwarded-Proto for Django to identify HTTPS requests.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = boolean_environment_value('SECURE_SSL_REDIRECT')
+SESSION_COOKIE_SECURE = boolean_environment_value('SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = boolean_environment_value('CSRF_COOKIE_SECURE', default=not DEBUG)
+try:
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
+except ValueError as exc:
+    raise ImproperlyConfigured('SECURE_HSTS_SECONDS must be a non-negative integer.') from exc
+if SECURE_HSTS_SECONDS < 0:
+    raise ImproperlyConfigured('SECURE_HSTS_SECONDS must be a non-negative integer.')
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -108,10 +133,6 @@ LOGGING = {
         },
     },
 }
-
-CORS_ALLOW_ALL_ORIGINS = True
-
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '10.0.2.2', 'testserver']
 
 ROOT_URLCONF = 'learning_app_backend.urls'
 
