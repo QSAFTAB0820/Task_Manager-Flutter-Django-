@@ -35,6 +35,14 @@ jobs:
         working-directory: learning_app_frontend
         run: flutter pub get
 
+      - name: Analyze Flutter app
+        working-directory: learning_app_frontend
+        run: flutter analyze
+
+      - name: Test Flutter app
+        working-directory: learning_app_frontend
+        run: flutter test
+
       - name: Build Flutter Web
         working-directory: learning_app_frontend
         run: flutter build web --release --dart-define-from-file=config/prod.json
