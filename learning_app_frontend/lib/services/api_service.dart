@@ -25,13 +25,16 @@ class SessionData {
 }
 
 class ApiService {
-  ApiService({String? baseUrl})
-      : baseUrl = baseUrl ?? const String.fromEnvironment(
-          'API_BASE_URL',
-          defaultValue: 'http://127.0.0.1:8000/api',
-        );
+  ApiService({String? baseUrl, http.Client? client})
+      : baseUrl = baseUrl ??
+            const String.fromEnvironment(
+              'API_BASE_URL',
+              defaultValue: 'http://127.0.0.1:8000/api',
+            ),
+        _client = client;
 
   final String baseUrl;
+  final http.Client? _client;
 
   Future<ApiResult<void>> register({
     required String username,
@@ -135,10 +138,13 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> _get(String path, {required String token}) async {
+  Future<Map<String, dynamic>> _get(String path,
+      {required String token}) async {
     final uri = Uri.parse('$baseUrl$path');
     _logRequest('GET', uri);
-    final response = await http.get(uri, headers: _headers(token));
+    final headers = _headers(token);
+    final response = await (_client?.get(uri, headers: headers) ??
+        http.get(uri, headers: headers));
     return _decodeResponse(response);
   }
 
@@ -150,7 +156,10 @@ class ApiService {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
     _logRequest('POST', uri);
-    final response = await http.post(uri, headers: headers, body: jsonEncode(body));
+    final encodedBody = jsonEncode(body);
+    final response =
+        await (_client?.post(uri, headers: headers, body: encodedBody) ??
+            http.post(uri, headers: headers, body: encodedBody));
     return _decodeResponse(response);
   }
 
@@ -162,15 +171,20 @@ class ApiService {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
     _logRequest('PATCH', uri);
-    final response = await http.patch(uri, headers: headers, body: jsonEncode(body));
+    final encodedBody = jsonEncode(body);
+    final response =
+        await (_client?.patch(uri, headers: headers, body: encodedBody) ??
+            http.patch(uri, headers: headers, body: encodedBody));
     return _decodeResponse(response);
   }
 
-  Future<Map<String, dynamic>> _delete(String path, {required String token}) async {
+  Future<Map<String, dynamic>> _delete(String path,
+      {required String token}) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = _headers(token);
     _logRequest('DELETE', uri);
-    final response = await http.delete(uri, headers: headers);
+    final response = await (_client?.delete(uri, headers: headers) ??
+        http.delete(uri, headers: headers));
     return _decodeResponse(response);
   }
 
@@ -186,12 +200,13 @@ class ApiService {
 
   void _logRequest(String method, Uri uri) {
     if (!kDebugMode) return;
-    print('[HTTP Request] $method $uri');
+    debugPrint('[HTTP Request] $method $uri');
   }
 
   Map<String, dynamic> _decodeResponse(http.Response response) {
     if (kDebugMode) {
-      print('[HTTP Response] ${response.statusCode} ${response.request?.url}');
+      debugPrint(
+          '[HTTP Response] ${response.statusCode} ${response.request?.url}');
     }
 
     final decoded = jsonDecode(response.body);
@@ -206,7 +221,8 @@ class ApiService {
     };
   }
 
-  ApiResult<TaskItem> _taskResult(Map<String, dynamic> response, String fallbackMessage) {
+  ApiResult<TaskItem> _taskResult(
+      Map<String, dynamic> response, String fallbackMessage) {
     final success = response['success'] as bool? ?? false;
     final data = response['data'] as Map<String, dynamic>?;
     final task = data?['task'] as Map<String, dynamic>?;
