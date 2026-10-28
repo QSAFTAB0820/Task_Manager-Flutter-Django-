@@ -1,0 +1,91 @@
+name: Build and publish Task Manager backend
+
+on:
+  push:
+    branches:
+      - docker-learning
+    paths:
+      - 'learning_app_backend/**'
+      - 'compose.backend.yaml'
+      - '.github/workflows/backend-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: backend-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/qsaftab0820/task-manager-backend
+
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: learning_app_backend
+
+    env:
+      SECRET_KEY: ci-only-not-a-production-secret
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      CORS_ALLOWED_ORIGINS: ""
+      SECURE_SSL_REDIRECT: "False"
+      SESSION_COOKIE_SECURE: "False"
+      CSRF_COOKIE_SECURE: "False"
+      SECURE_HSTS_SECONDS: "0"
+      SQLITE_DB_PATH: /tmp/task-manager-ci.sqlite3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: learning_app_backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Check Django configuration
+        run: python manage.py check
+
+      - name: Check migration files
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations to CI database
+        run: python manage.py migrate --noinput
+
+      - name: Run Django tests
+        run: python manage.py test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./learning_app_backend
+          file: ./learning_app_backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
